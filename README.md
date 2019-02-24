@@ -1,7 +1,8 @@
-rpc
-===
-[![Build Status](https://travis-ci.org/gorilla/rpc.png?branch=master)](https://travis-ci.org/gorilla/rpc)
+# JSON-RPC Module for Helium
 
-gorilla/rpc is a foundation for RPC over HTTP services, providing access to the exported methods of an object through HTTP requests.
+![Codecov](https://img.shields.io/codecov/c/github/go-helium/jsonrpc.svg?style=flat-square)
+[![Build Status](https://travis-ci.com/go-helium/jsonrpc.svg?branch=master)](https://travis-ci.com/go-helium/jsonrpc)
+[![Report](https://goreportcard.com/badge/github.com/go-helium/jsonrpc)](https://goreportcard.com/report/github.com/go-helium/jsonrpc)
+[![GitHub release](https://img.shields.io/github/release/go-helium/jsonrpc.svg)](https://github.com/go-helium/jsonrpc)
+![GitHub](https://img.shields.io/github/license/go-helium/jsonrpc.svg?style=popout)
 
-Read the full documentation here: https://www.gorillatoolkit.org/pkg/rpc
