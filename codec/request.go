@@ -21,7 +21,7 @@ type (
 		// The request id. MUST be a string, number or null.
 		// Our implementation will not do type checking for id.
 		// It will be copied as it is.
-		Id *json.Number `json:"id,int,omitempty"`
+		ID *json.Number `json:"id,int,omitempty"`
 
 		// A String containing the name of the method to be invoked.
 		Method string `json:"method,omitempty"`
@@ -36,7 +36,7 @@ type (
 		Version json.Number `json:"jsonrpc,string"`
 
 		// This must be the same id as the request it is responding to.
-		Id *json.Number `json:"id,int"`
+		ID *json.Number `json:"id,int"`
 
 		// The Object that was returned by the invoked method. This must be null
 		// in case there was an error invoking the method.
@@ -49,7 +49,7 @@ type (
 		Error *Error `json:"error,omitempty"`
 	}
 
-	// codec creates a CodecRequest to process each request.
+	// Interface codec creates a CodecRequest to process each request.
 	Interface interface {
 		NewRequest(http.ResponseWriter, *http.Request) (Request, error)
 	}
@@ -203,7 +203,7 @@ func (c *request) WriteResponse(reply interface{}) {
 	res := &serverResponse{
 		Version: Version,
 		Result:  reply,
-		Id:      c.request.Id,
+		ID:      c.request.ID,
 	}
 	c.writeServerResponse(res)
 }
@@ -212,7 +212,7 @@ func (c *request) WriteResponse(reply interface{}) {
 func (c *request) WriteError(status int, err error) {
 	res := &serverResponse{
 		Version: Version,
-		Id:      c.request.Id,
+		ID:      c.request.ID,
 	}
 
 	switch err := err.(type) {
@@ -230,8 +230,8 @@ func (c *request) WriteError(status int, err error) {
 
 func (c *request) writeServerResponse(res *serverResponse) {
 	c.writer.Header().Set(misc.HeaderXContentTypeOptions, "nosniff")
-	// Id is null for notifications and they don't have a response.
-	if c.request.Id != nil {
+	// ID is null for notifications and they don't have a response.
+	if c.request.ID != nil {
 		c.writer.Header().Set(misc.HeaderContentType, misc.MIMEApplicationJSONCharsetUTF8)
 		encoder := json.NewEncoder(c.encoder.Encode(c.writer))
 
@@ -242,6 +242,7 @@ func (c *request) writeServerResponse(res *serverResponse) {
 	}
 }
 
+// WriteError to ResponseWriter
 func WriteError(w http.ResponseWriter, err error) {
 	w.Header().Set(misc.HeaderXContentTypeOptions, "nosniff")
 	w.Header().Set(misc.HeaderContentType, misc.MIMEApplicationJSONCharsetUTF8)

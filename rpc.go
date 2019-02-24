@@ -14,6 +14,7 @@ import (
 )
 
 type (
+	// RPC server struct
 	RPC struct {
 		codec  *codecs
 		method *methods
@@ -49,8 +50,8 @@ var (
 	errNotEnoughOut    = errors.New("method needs one out: error")
 	errNotReturnError  = errors.New("method needs one out: error")
 	errFirstArgRequest = errors.New("method needs first parameter to be *http.Request")
-	errSecondArgError  = errors.New("second argument must be a pointer and must be exported.")
-	errThirdArgError   = errors.New("third argument must be a pointer and must be exported.")
+	errSecondArgError  = errors.New("second argument must be a pointer and must be exported")
+	errThirdArgError   = errors.New("third argument must be a pointer and must be exported")
 )
 
 // creates instance of codec registry

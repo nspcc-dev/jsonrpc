@@ -72,7 +72,7 @@ func acceptedEnc(req *http.Request) string {
 }
 
 // Select method selects the correct compression encoder based on http HEADER.
-func (_ *CompressionSelector) Select(r *http.Request) Encoder {
+func (*CompressionSelector) Select(r *http.Request) Encoder {
 	switch acceptedEnc(r) {
 	case "gzip":
 		return &gzipEncoder{}

@@ -18,12 +18,19 @@ type (
 )
 
 const (
-	ErrServer         = -32000
+	// ErrServer Reserved for implementation-defined server-errors.
+	ErrServer = -32000
+	// ErrInvalidRequest The JSON sent is not a valid Request object.
 	ErrInvalidRequest = -32600
-	ErrNoMethod       = -32601
-	ErrBadParams      = -32602
-	ErrInternal       = -32603
-	ErrParse          = -32700
+	// ErrNoMethod The method does not exist / is not available.
+	ErrNoMethod = -32601
+	// ErrBadParams Invalid method parameter(s).
+	ErrBadParams = -32602
+	// ErrInternal Internal JSON-RPC error.
+	ErrInternal = -32603
+	// ErrParse Invalid JSON was received by the server.
+	// An error occurred on the server while parsing the JSON text.
+	ErrParse = -32700
 )
 
 func (e *Error) Error() string { return e.Message }

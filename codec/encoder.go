@@ -25,14 +25,16 @@ type (
 )
 
 var (
-	DefaultEncoder         = &encoder{}
+	// DefaultEncoder for request
+	DefaultEncoder = &encoder{}
+	// DefaultEncoderSelector for request
 	DefaultEncoderSelector = &encoderSelector{}
 )
 
-func (_ *encoder) Encode(w http.ResponseWriter) io.Writer {
+func (*encoder) Encode(w http.ResponseWriter) io.Writer {
 	return w
 }
 
-func (_ *encoderSelector) Select(_ *http.Request) Encoder {
+func (*encoderSelector) Select(_ *http.Request) Encoder {
 	return DefaultEncoder
 }

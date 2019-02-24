@@ -17,10 +17,14 @@ type (
 const (
 	charsetUTF8 = "charset=UTF-8"
 
-	HeaderContentType              = "Content-Type"
-	MIMEApplicationJSON            = "application/json"
+	// HeaderContentType constant
+	HeaderContentType = "Content-Type"
+	// MIMEApplicationJSON constant
+	MIMEApplicationJSON = "application/json"
+	// MIMEApplicationJSONCharsetUTF8 constant
 	MIMEApplicationJSONCharsetUTF8 = MIMEApplicationJSON + "; " + charsetUTF8
-	HeaderXContentTypeOptions      = "X-Content-Type-Options"
+	// HeaderXContentTypeOptions constant
+	HeaderXContentTypeOptions = "X-Content-Type-Options"
 )
 
 // NewHTTPError creates a new HTTPError instance.
