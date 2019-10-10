@@ -5,20 +5,21 @@ import (
 	"net/http"
 )
 
-type (
-	// HTTPError represents an error that occurred while handling a request.
-	HTTPError struct {
-		Code     int
-		Message  interface{}
-		Internal error // Stores the error returned by an external dependency
-	}
-)
+// HTTPError represents an error that occurred while handling a request.
+type HTTPError struct {
+	Code    int
+	Message interface{}
+}
 
 const (
 	charsetUTF8 = "charset=UTF-8"
 
 	// HeaderContentType constant
 	HeaderContentType = "Content-Type"
+	// HeaderAcceptEncoding constant
+	HeaderAcceptEncoding = "Accept-Encoding"
+	// HeaderContentEncoding constant
+	HeaderContentEncoding = "Content-Encoding"
 	// MIMEApplicationJSON constant
 	MIMEApplicationJSON = "application/json"
 	// MIMEApplicationJSONCharsetUTF8 constant
@@ -39,10 +40,4 @@ func NewHTTPError(code int, message ...interface{}) *HTTPError {
 // Error makes it compatible with `error` interface.
 func (he *HTTPError) Error() string {
 	return fmt.Sprintf("code=%d, message=%v", he.Code, he.Message)
-}
-
-// SetInternal sets error to HTTPError.Internal
-func (he *HTTPError) SetInternal(err error) *HTTPError {
-	he.Internal = err
-	return he
 }

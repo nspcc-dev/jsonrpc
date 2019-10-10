@@ -1,16 +1,19 @@
 package jsonrpc
 
 import (
+	"bytes"
+	"compress/flate"
+	"compress/gzip"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
 	"strings"
 	"testing"
 
-	"github.com/go-helium/jsonrpc/codec"
-	"github.com/go-helium/jsonrpc/misc"
-	"github.com/pkg/errors"
-	. "github.com/smartystreets/goconvey/convey"
+	"github.com/nspcc-dev/jsonrpc/codec"
+	"github.com/nspcc-dev/jsonrpc/misc"
+	"github.com/stretchr/testify/require"
 )
 
 type fakeType struct{}
@@ -140,13 +143,12 @@ func (fakeType) uncommon() *interface{} {
 }
 
 func TestRPCSuite(t *testing.T) {
-	Convey("RPC Test Suite", t, func() {
-		var (
-			rec = httptest.NewRecorder()
-			srv = NewRPC()
-		)
-
-		Convey("should run without errors", func() {
+	t.Run("RPC Test Suite", func(t *testing.T) {
+		t.Run("should run without errors", func(t *testing.T) {
+			var (
+				rec = httptest.NewRecorder()
+				srv = NewRPC()
+			)
 			cdc := codec.NewCustom(&CompressionSelector{})
 			srv.AddCodec(cdc, misc.MIMEApplicationJSON)
 			srv.AddCodec(cdc, misc.MIMEApplicationJSONCharsetUTF8)
@@ -158,7 +160,7 @@ func TestRPCSuite(t *testing.T) {
 				return nil
 			})
 
-			So(err, ShouldBeNil)
+			require.NoError(t, err)
 
 			req, err := http.NewRequest(http.MethodPost, "", strings.NewReader(`{
 				"jsonrpc": "2.0",
@@ -166,18 +168,31 @@ func TestRPCSuite(t *testing.T) {
 				"method": "sum",
 				"params": [1,2,3,4]
 			}`))
-			So(err, ShouldBeNil)
+			require.NoError(t, err)
 
 			req.Header.Set(misc.HeaderContentType,
 				misc.MIMEApplicationJSONCharsetUTF8)
 
-			So(func() { srv.ServeHTTP(rec, req) }, ShouldNotPanic)
+			// Accept-Encoding: gzip, deflate, br
+			req.Header.Set(misc.HeaderAcceptEncoding, "gzip, deflate, br")
 
-			body := strings.TrimSpace(rec.Body.String())
-			So(body, ShouldEqual, `{"jsonrpc":2.0,"id":1,"result":10}`)
+			require.NotPanics(t, func() { srv.ServeHTTP(rec, req) })
+
+			gz, err := gzip.NewReader(rec.Body)
+			require.NoError(t, err)
+
+			body, err := ioutil.ReadAll(gz)
+			require.NoError(t, err)
+
+			body = bytes.TrimSpace(body)
+			require.Equal(t, `{"jsonrpc":2.0,"id":1,"result":10}`, string(body))
 		})
 
-		Convey("should recover panic in method", func() {
+		t.Run("should recover panic in method", func(t *testing.T) {
+			var (
+				rec = httptest.NewRecorder()
+				srv = NewRPC()
+			)
 			cdc := codec.NewCustom(&CompressionSelector{})
 			srv.AddCodec(cdc, misc.MIMEApplicationJSON)
 			srv.AddCodec(cdc, misc.MIMEApplicationJSONCharsetUTF8)
@@ -186,7 +201,7 @@ func TestRPCSuite(t *testing.T) {
 				panic("panic error")
 			})
 
-			So(err, ShouldBeNil)
+			require.NoError(t, err)
 
 			req, err := http.NewRequest(http.MethodPost, "", strings.NewReader(`{
 				"jsonrpc": "2.0",
@@ -194,35 +209,53 @@ func TestRPCSuite(t *testing.T) {
 				"method": "sum",
 				"params": [1,2,3,4]
 			}`))
-			So(err, ShouldBeNil)
+			require.NoError(t, err)
 
 			req.Header.Set(misc.HeaderContentType,
 				misc.MIMEApplicationJSONCharsetUTF8)
 
-			So(func() { srv.ServeHTTP(rec, req) }, ShouldNotPanic)
+			req.Header.Set(misc.HeaderAcceptEncoding, "wrong, encoding")
+
+			require.NotPanics(t, func() { srv.ServeHTTP(rec, req) })
 
 			body := strings.TrimSpace(rec.Body.String())
-			So(body, ShouldEqual, `{"jsonrpc":2.0,"id":1,"error":{"code":-32603,"message":"something went wrong","data":"panic error"}}`)
+			require.Equal(t, `{"jsonrpc":2.0,"id":1,"error":{"code":-32603,"message":"something went wrong","data":"panic error"}}`, body)
 		})
 
-		Convey("should fail with GET request", func() {
+		t.Run("should fail with GET request", func(t *testing.T) {
+			var (
+				rec = httptest.NewRecorder()
+				srv = NewRPC()
+			)
 			cdc := codec.NewCustom(&CompressionSelector{})
 			srv.AddCodec(cdc, misc.MIMEApplicationJSON)
 			srv.AddCodec(cdc, misc.MIMEApplicationJSONCharsetUTF8)
 
 			req, err := http.NewRequest(http.MethodGet, "", nil)
-			So(err, ShouldBeNil)
+			require.NoError(t, err)
 
 			req.Header.Set(misc.HeaderContentType,
 				misc.MIMEApplicationJSONCharsetUTF8)
 
-			So(func() { srv.ServeHTTP(rec, req) }, ShouldNotPanic)
+			req.Header.Set(misc.HeaderAcceptEncoding, "deflate, gzip")
 
-			body := strings.TrimSpace(rec.Body.String())
-			So(body, ShouldEqual, `{"jsonrpc":"2.0","id":1,"error":{"code":-32600,"message":"rpc: POST method required, received GET"}}`)
+			require.NotPanics(t, func() { srv.ServeHTTP(rec, req) })
+
+			fl := flate.NewReader(rec.Body)
+
+			body, err := ioutil.ReadAll(fl)
+			require.NoError(t, err)
+
+			body = bytes.TrimSpace(body)
+
+			require.Equal(t, `{"jsonrpc":"2.0","id":1,"error":{"code":-32600,"message":"rpc: POST method required, received GET"}}`, string(body))
 		})
 
-		Convey("should fail with wrong args", func() {
+		t.Run("should fail with wrong args", func(t *testing.T) {
+			var (
+				rec = httptest.NewRecorder()
+				srv = NewRPC()
+			)
 			cdc := codec.NewCustom(&CompressionSelector{})
 			srv.AddCodec(cdc, misc.MIMEApplicationJSON)
 			srv.AddCodec(cdc, misc.MIMEApplicationJSONCharsetUTF8)
@@ -234,7 +267,7 @@ func TestRPCSuite(t *testing.T) {
 				return nil
 			})
 
-			So(err, ShouldBeNil)
+			require.NoError(t, err)
 
 			req, err := http.NewRequest(http.MethodPost, "", strings.NewReader(`{
 				"jsonrpc": "2.0",
@@ -242,27 +275,31 @@ func TestRPCSuite(t *testing.T) {
 				"method": "sum",
 				"params": "a"
 			}`))
-			So(err, ShouldBeNil)
+			require.NoError(t, err)
 
 			req.Header.Set(misc.HeaderContentType,
 				misc.MIMEApplicationJSONCharsetUTF8)
 
-			So(func() { srv.ServeHTTP(rec, req) }, ShouldNotPanic)
+			require.NotPanics(t, func() { srv.ServeHTTP(rec, req) })
 
 			body := strings.TrimSpace(rec.Body.String())
-			So(body, ShouldEqual, `{"jsonrpc":2.0,"id":1,"error":{"code":-32602,"message":"cannot unmarshal request","data":"a"}}`)
+			require.Equal(t, `{"jsonrpc":2.0,"id":1,"error":{"code":-32602,"message":"cannot unmarshal request","data":"a"}}`, body)
 		})
 
-		Convey("should return error from handler", func() {
+		t.Run("should return error from handler", func(t *testing.T) {
+			var (
+				rec = httptest.NewRecorder()
+				srv = NewRPC()
+			)
 			cdc := codec.NewCustom(&CompressionSelector{})
 			srv.AddCodec(cdc, misc.MIMEApplicationJSON)
 			srv.AddCodec(cdc, misc.MIMEApplicationJSONCharsetUTF8)
 
 			err := srv.AddMethod("sum", func(r *http.Request, args []int, reply *int) error {
-				return errors.New("method error")
+				return Error("method error")
 			})
 
-			So(err, ShouldBeNil)
+			require.NoError(t, err)
 
 			req, err := http.NewRequest(http.MethodPost, "", strings.NewReader(`{
 				"jsonrpc": "2.0",
@@ -270,18 +307,22 @@ func TestRPCSuite(t *testing.T) {
 				"method": "sum",
 				"params": [1]
 			}`))
-			So(err, ShouldBeNil)
+			require.NoError(t, err)
 
 			req.Header.Set(misc.HeaderContentType,
 				misc.MIMEApplicationJSONCharsetUTF8)
 
-			So(func() { srv.ServeHTTP(rec, req) }, ShouldNotPanic)
+			require.NotPanics(t, func() { srv.ServeHTTP(rec, req) })
 
 			body := strings.TrimSpace(rec.Body.String())
-			So(body, ShouldEqual, `{"jsonrpc":2.0,"id":1,"error":{"code":-32000,"message":"method error"}}`)
+			require.Equal(t, `{"jsonrpc":2.0,"id":1,"error":{"code":-32000,"message":"method error"}}`, body)
 		})
 
-		Convey("should fail with Method not found", func() {
+		t.Run("should fail with Method not found", func(t *testing.T) {
+			var (
+				rec = httptest.NewRecorder()
+				srv = NewRPC()
+			)
 			cdc := codec.NewCustom(&CompressionSelector{})
 			srv.AddCodec(cdc, misc.MIMEApplicationJSON)
 			srv.AddCodec(cdc, misc.MIMEApplicationJSONCharsetUTF8)
@@ -292,25 +333,29 @@ func TestRPCSuite(t *testing.T) {
 				"method": "unknown_method",
 				"params": [1,2,3,4]
 			}`))
-			So(err, ShouldBeNil)
+			require.NoError(t, err)
 
 			req.Header.Set(misc.HeaderContentType,
 				misc.MIMEApplicationJSONCharsetUTF8)
 
-			So(func() { srv.ServeHTTP(rec, req) }, ShouldNotPanic)
+			require.NotPanics(t, func() { srv.ServeHTTP(rec, req) })
 
 			body := strings.TrimSpace(rec.Body.String())
-			So(body, ShouldEqual, `{"jsonrpc":2.0,"id":1,"error":{"code":-32601,"message":"Method not found"}}`)
+			require.Equal(t, `{"jsonrpc":2.0,"id":1,"error":{"code":-32601,"message":"Method not found"}}`, body)
 		})
 
-		Convey("should fail on unknown content-type", func() {
+		t.Run("should fail on unknown content-type", func(t *testing.T) {
+			var (
+				rec = httptest.NewRecorder()
+				srv = NewRPC()
+			)
 			err := srv.AddMethod("sum", func(r *http.Request, args []int, reply *int) error {
 				for i := range args {
 					*reply += args[i]
 				}
 				return nil
 			})
-			So(err, ShouldBeNil)
+			require.NoError(t, err)
 
 			req, err := http.NewRequest(http.MethodPost, "/", strings.NewReader(`{
 				"jsonrpc": "2.0",
@@ -318,44 +363,51 @@ func TestRPCSuite(t *testing.T) {
 				"method": "sum",
 				"params": [1,2,3,4]
 			}`))
-			So(err, ShouldBeNil)
-			So(func() { srv.ServeHTTP(rec, req) }, ShouldNotPanic)
+			require.NoError(t, err)
+
+			require.NotPanics(t, func() { srv.ServeHTTP(rec, req) })
 
 			body := strings.TrimSpace(rec.Body.String())
-			So(body, ShouldEqual, `{"jsonrpc":"2.0","id":1,"error":{"code":-32600,"message":"code=415, message=rpc: unrecognized Content-Type: "}}`)
+			require.Equal(t, `{"jsonrpc":"2.0","id":1,"error":{"code":-32600,"message":"code=415, message=rpc: unrecognized Content-Type: "}}`, body)
 		})
 
-		Convey("should fail on bad method", func() {
-			Convey("method must be function", func() {
+		t.Run("should fail on bad method", func(t *testing.T) {
+			t.Run("method must be function", func(t *testing.T) {
+				var srv = NewRPC()
 				err := srv.AddMethod("sum", new(int))
-				So(err, ShouldBeError, errNotAFunction)
+				require.EqualError(t, err, ErrNotAFunction.Error())
 			})
 
-			Convey("not enough args", func() {
+			t.Run("not enough args", func(t *testing.T) {
+				var srv = NewRPC()
 				err := srv.AddMethod("sum", func() {})
-				So(err, ShouldBeError, errNotEnoughArgs)
+				require.EqualError(t, err, ErrNotEnoughArgs.Error())
 			})
 
-			Convey("must return error", func() {
+			t.Run("must return error", func(t *testing.T) {
+				var srv = NewRPC()
 				err := srv.AddMethod("sum", func(a, b, c int) {})
-				So(err, ShouldBeError, errNotEnoughOut)
+				require.EqualError(t, err, ErrNotEnoughOut.Error())
 				err = srv.AddMethod("sum", func(a, b, c int) int { return 0 })
-				So(err, ShouldBeError, errNotReturnError)
+				require.EqualError(t, err, ErrNotReturnError.Error())
 			})
 
-			Convey("first arg error", func() {
+			t.Run("first arg error", func(t *testing.T) {
+				var srv = NewRPC()
 				err := srv.AddMethod("sum", func(a, b, c int) error { return nil })
-				So(err, ShouldBeError, errFirstArgRequest)
+				require.EqualError(t, err, ErrFirstArgRequest.Error())
 			})
 
-			Convey("second arg error", func() {
+			t.Run("second arg error", func(t *testing.T) {
+				var srv = NewRPC()
 				err := srv.AddMethod("sum", func(*http.Request, fakeType, int) error { return nil })
-				So(err, ShouldBeError, errSecondArgError)
+				require.EqualError(t, err, ErrSecondArgError.Error())
 			})
 
-			Convey("third arg error", func() {
+			t.Run("third arg error", func(t *testing.T) {
+				var srv = NewRPC()
 				err := srv.AddMethod("sum", func(*http.Request, **struct{}, int) error { return nil })
-				So(err, ShouldBeError, errThirdArgError)
+				require.EqualError(t, err, ErrThirdArgError.Error())
 			})
 		})
 	})

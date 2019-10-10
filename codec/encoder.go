@@ -20,21 +20,33 @@ type (
 		Select(r *http.Request) Encoder
 	}
 
-	encoder         struct{}
-	encoderSelector struct{}
+	encResponseWriter struct {
+		http.ResponseWriter
+		enc Encoder
+	}
+
+	encoder         int
+	encoderSelector int
 )
 
 var (
 	// DefaultEncoder for request
-	DefaultEncoder = &encoder{}
+	DefaultEncoder = encoder(0)
 	// DefaultEncoderSelector for request
-	DefaultEncoderSelector = &encoderSelector{}
+	DefaultEncoderSelector = encoderSelector(0)
 )
 
-func (*encoder) Encode(w http.ResponseWriter) io.Writer {
-	return w
+func (encoder) Encode(w http.ResponseWriter) io.Writer { return w }
+
+func (encoderSelector) Select(_ *http.Request) Encoder { return DefaultEncoder }
+
+func (w *encResponseWriter) Write(data []byte) (int, error) {
+	return w.enc.Encode(w.ResponseWriter).Write(data)
 }
 
-func (*encoderSelector) Select(_ *http.Request) Encoder {
-	return DefaultEncoder
+func NewEncodedResponse(w http.ResponseWriter, enc Encoder) http.ResponseWriter {
+	return &encResponseWriter{
+		ResponseWriter: w,
+		enc:            enc,
+	}
 }

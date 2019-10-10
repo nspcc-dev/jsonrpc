@@ -8,9 +8,8 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/go-helium/jsonrpc/codec"
-	"github.com/go-helium/jsonrpc/misc"
-	"github.com/pkg/errors"
+	"github.com/nspcc-dev/jsonrpc/codec"
+	"github.com/nspcc-dev/jsonrpc/misc"
 )
 
 type (
@@ -36,23 +35,29 @@ type (
 		replyType reflect.Type  // type of the response argument
 	}
 
+	Error string
+
 	// CompressionSelector alias
 	CompressionSelector = codec.CompressionSelector
+)
+
+const (
+	ErrNotAFunction    = Error("method must be function")
+	ErrNotEnoughArgs   = Error("method needs three args: *http.Request, *args, *reply")
+	ErrNotEnoughOut    = Error("method needs one out: error")
+	ErrNotReturnError  = Error("method needs one out: error")
+	ErrFirstArgRequest = Error("method needs first parameter to be *http.Request")
+	ErrSecondArgError  = Error("second argument must be a pointer and must be exported")
+	ErrThirdArgError   = Error("third argument must be a pointer and must be exported")
 )
 
 var (
 	// Precomputed the reflect.Type of error and http.Request
 	typeOfError   = reflect.TypeOf((*error)(nil)).Elem()
 	typeOfRequest = reflect.TypeOf((*http.Request)(nil)).Elem()
-
-	errNotAFunction    = errors.New("method must be function")
-	errNotEnoughArgs   = errors.New("method needs three args: *http.Request, *args, *reply")
-	errNotEnoughOut    = errors.New("method needs one out: error")
-	errNotReturnError  = errors.New("method needs one out: error")
-	errFirstArgRequest = errors.New("method needs first parameter to be *http.Request")
-	errSecondArgError  = errors.New("second argument must be a pointer and must be exported")
-	errThirdArgError   = errors.New("third argument must be a pointer and must be exported")
 )
+
+func (e Error) Error() string { return string(e) }
 
 // creates instance of codec registry
 func newCodecRegistry() *codecs {
@@ -109,30 +114,30 @@ func (s *RPC) AddMethod(name string, fn interface{}) error {
 	)
 
 	if v.Kind() != reflect.Func {
-		return errNotAFunction
+		return ErrNotAFunction
 	} else if t.NumIn() != 3 {
-		return errNotEnoughArgs
+		return ErrNotEnoughArgs
 	} else if t.NumOut() != 1 {
-		return errNotEnoughOut
+		return ErrNotEnoughOut
 	}
 
 	// Method must return error
 	if rt := t.Out(0); rt != typeOfError {
-		return errNotReturnError
+		return ErrNotReturnError
 	}
 
 	// First argument must be *http.Request
 	if rt := t.In(0); rt.Kind() != reflect.Ptr || rt.Elem() != typeOfRequest {
-		return errFirstArgRequest
+		return ErrFirstArgRequest
 	}
 
 	// Second argument must be exported or builtin.
 	if args = t.In(1); !isExportedOrBuiltin(args) {
-		return errSecondArgError
+		return ErrSecondArgError
 	}
 	// Third argument must be a pointer and must be exported or builtin.
 	if reply = t.In(2); !validateInputType(reply) {
-		return errThirdArgError
+		return ErrThirdArgError
 	}
 
 	s.method.mu.Lock()
@@ -168,11 +173,14 @@ func (s *RPC) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		caller *method
 	)
 
+	enc := new(CompressionSelector).Select(r)
+	res := codec.NewEncodedResponse(w, enc)
+
 	if cdc, err = s.getCodec(r); err != nil {
-		codec.WriteError(w, err)
+		codec.WriteError(res, err)
 		return
 	} else if req, err = cdc.NewRequest(w, r); err != nil {
-		codec.WriteError(w, err)
+		codec.WriteError(res, err)
 		return
 	}
 

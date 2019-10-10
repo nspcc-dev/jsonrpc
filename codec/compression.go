@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"strings"
 	"unicode"
+
+	"github.com/nspcc-dev/jsonrpc/misc"
 )
 
 type (
@@ -20,43 +22,49 @@ type (
 		w *gzip.Writer
 	}
 
-	// flateEncoder implements the flate compressed http encoder.
-	flateEncoder struct{}
+	// deflateEncoder implements the deflate compressed http encoder.
+	deflateEncoder struct{}
 
-	// flateWriter writes and closes the flate writer.
-	flateWriter struct {
+	// deflateWriter writes and closes the deflate writer.
+	deflateWriter struct {
 		w *flate.Writer
 	}
 )
 
 func (gw *gzipWriter) Write(p []byte) (n int, err error) {
-	defer gw.w.Close()
+	defer func() {
+		if err == nil {
+			err = gw.w.Close()
+		}
+	}()
 	return gw.w.Write(p)
 }
 
 func (enc *gzipEncoder) Encode(w http.ResponseWriter) io.Writer {
-	w.Header().Set("Content-Encoding", "gzip")
+	w.Header().Set(misc.HeaderContentEncoding, "gzip")
 	return &gzipWriter{gzip.NewWriter(w)}
 }
 
-func (fw *flateWriter) Write(p []byte) (n int, err error) {
-	defer fw.w.Close()
+func (fw *deflateWriter) Write(p []byte) (n int, err error) {
+	defer func() {
+		if err == nil {
+			err = fw.w.Close()
+		}
+	}()
 	return fw.w.Write(p)
 }
 
-func (enc *flateEncoder) Encode(w http.ResponseWriter) io.Writer {
-	fw, err := flate.NewWriter(w, flate.DefaultCompression)
-	if err != nil {
-		return w
-	}
-	w.Header().Set("Content-Encoding", "deflate")
-	return &flateWriter{fw}
+func (enc *deflateEncoder) Encode(w http.ResponseWriter) io.Writer {
+	// we use default compression level, error can be omitted
+	fw, _ := flate.NewWriter(w, flate.DefaultCompression)
+	w.Header().Set(misc.HeaderContentEncoding, "deflate")
+	return &deflateWriter{fw}
 }
 
 // acceptedEnc returns the first compression type in "Accept-Encoding" header
 // field of the request.
 func acceptedEnc(req *http.Request) string {
-	encHeader := req.Header.Get("Accept-Encoding")
+	encHeader := req.Header.Get(misc.HeaderAcceptEncoding)
 	if encHeader == "" {
 		return ""
 	}
@@ -73,11 +81,12 @@ func acceptedEnc(req *http.Request) string {
 
 // Select method selects the correct compression encoder based on http HEADER.
 func (*CompressionSelector) Select(r *http.Request) Encoder {
-	switch acceptedEnc(r) {
+	switch enc := acceptedEnc(r); enc {
 	case "gzip":
 		return &gzipEncoder{}
-	case "flate":
-		return &flateEncoder{}
+	case "deflate":
+		return &deflateEncoder{}
+	default:
+		return DefaultEncoder
 	}
-	return DefaultEncoder
 }

@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-helium/jsonrpc/misc"
-	. "github.com/smartystreets/goconvey/convey"
+	"github.com/nspcc-dev/jsonrpc/misc"
+	"github.com/stretchr/testify/require"
 )
 
 type (
@@ -22,154 +22,214 @@ func (errorWriter) Write(p []byte) (n int, err error)       { return 0, errors.N
 func (errorEncoder) Encode(w http.ResponseWriter) io.Writer { return &errorWriter{} }
 
 func TestCodecSuite(t *testing.T) {
-	Convey("Request codec test suite", t, func() {
-		var (
-			rec   = httptest.NewRecorder()
-			codec = NewCodec()
-		)
-
-		Convey("should create codec without errors", func() {
+	t.Run("Request codec test suite", func(t *testing.T) {
+		t.Run("should create codec without errors", func(t *testing.T) {
+			var (
+				rec   = httptest.NewRecorder()
+				codec = NewCodec()
+			)
 			req, err := http.NewRequest(http.MethodPost, "/", strings.NewReader(`{
 				"jsonrpc": "2.0",
 				"id": "1",
 				"method": "someMethod",
 				"params": "params"
 			}`))
-			So(err, ShouldBeNil)
+			require.NoError(t, err)
 
 			r, err := codec.NewRequest(rec, req)
-			So(err, ShouldBeNil)
+			require.NoError(t, err)
 
-			So(r.Method(), ShouldEqual, "someMethod")
+			require.Equal(t, "someMethod", r.Method())
 
 			var args string
-			So(r.ReadRequest(&args), ShouldBeNil)
-			So(args, ShouldEqual, "params")
+			require.NoError(t, r.ReadRequest(&args))
+			require.Equal(t, "params", args)
 
 			r.WriteResponse(args)
 
 			body := strings.TrimSpace(rec.Body.String())
-			So(body, ShouldEqual, `{"jsonrpc":2.0,"id":1,"result":"params"}`)
+			require.Equal(t, `{"jsonrpc":2.0,"id":1,"result":"params"}`, body)
 		})
 
-		Convey("should fail with encoder error", func() {
+		t.Run("should fail with encoder error", func(t *testing.T) {
+			var (
+				rec   = httptest.NewRecorder()
+				codec = NewCodec()
+			)
 			req, err := http.NewRequest(http.MethodPost, "/", strings.NewReader(`{
 				"jsonrpc": "2.0",
 				"id": "1",
 				"method": "someMethod",
 				"params": "params"
 			}`))
-			So(err, ShouldBeNil)
+			require.NoError(t, err)
 
 			r, err := codec.NewRequest(rec, req)
-			So(err, ShouldBeNil)
+			require.NoError(t, err)
 
 			r.(*request).encoder = &errorEncoder{}
 
-			So(r.Method(), ShouldEqual, "someMethod")
+			require.Equal(t, "someMethod", r.Method())
 
 			var args string
-			So(r.ReadRequest(&args), ShouldBeNil)
-			So(args, ShouldEqual, "params")
+			require.NoError(t, r.ReadRequest(&args))
+			require.Equal(t, "params", args)
 
 			r.WriteResponse(args)
 
 			body := strings.TrimSpace(rec.Body.String())
-			So(body, ShouldEqual, `{"jsonrpc":"2.0","id":1,"error":{"code":-32600,"message":"error writer"}}`)
+			require.Equal(t, `{"jsonrpc":"2.0","id":1,"error":{"code":-32600,"message":"error writer"}}`, body)
 		})
 
-		Convey("should fail when method not POST", func() {
+		t.Run("should fail when method not POST", func(t *testing.T) {
+			var (
+				rec   = httptest.NewRecorder()
+				codec = NewCodec()
+			)
 			req, err := http.NewRequest(http.MethodGet, "/", nil)
-			So(err, ShouldBeNil)
+			require.NoError(t, err)
 
 			r, err := codec.NewRequest(rec, req)
-			So(r, ShouldBeNil)
-			So(err, ShouldBeError)
+			require.Nil(t, r)
+			require.Error(t, err)
 
 			our, ok := err.(*Error)
-			So(ok, ShouldBeTrue)
-			So(our.Code, ShouldEqual, ErrInvalidRequest)
-			So(our.Error(), ShouldEqual, `rpc: POST method required, received GET`)
+			require.True(t, ok)
+			require.Equal(t, ErrInvalidRequest, our.Code)
+			require.Equal(t, `rpc: POST method required, received GET`, our.Error())
 		})
 
-		Convey("should fail with invalid json", func() {
+		t.Run("should fail with invalid json", func(t *testing.T) {
+			var (
+				rec   = httptest.NewRecorder()
+				codec = NewCodec()
+			)
 			req, err := http.NewRequest(http.MethodPost, "/", strings.NewReader(`invalid`))
-			So(err, ShouldBeNil)
+			require.NoError(t, err)
 
 			r, err := codec.NewRequest(rec, req)
-			So(r, ShouldBeNil)
-			So(err, ShouldBeError)
+			require.Nil(t, r)
+			require.Error(t, err)
 
 			our, ok := err.(*Error)
-			So(ok, ShouldBeTrue)
-			So(our.Code, ShouldEqual, ErrParse)
+			require.True(t, ok)
+			require.Equal(t, ErrParse, our.Code)
 		})
 
-		Convey("should fail on unknown version", func() {
+		t.Run("should fail on unknown version", func(t *testing.T) {
+			var (
+				rec   = httptest.NewRecorder()
+				codec = NewCodec()
+			)
 			req, err := http.NewRequest(http.MethodPost, "/", strings.NewReader(`{"jsonrpc": ""}`))
-			So(err, ShouldBeNil)
+			require.NoError(t, err)
 
 			r, err := codec.NewRequest(rec, req)
-			So(r, ShouldBeNil)
-			So(err, ShouldBeError)
+			require.Nil(t, r)
+			require.Error(t, err)
 
 			our, ok := err.(*Error)
-			So(ok, ShouldBeTrue)
-			So(our.Code, ShouldEqual, ErrInvalidRequest)
+			require.True(t, ok)
+			require.Equal(t, ErrInvalidRequest, our.Code)
 		})
 
-		Convey("should fail on bad params", func() {
+		t.Run("should fail on bad params", func(t *testing.T) {
+			var (
+				rec   = httptest.NewRecorder()
+				codec = NewCodec()
+			)
 			req, err := http.NewRequest(http.MethodPost, "/", strings.NewReader(`{"jsonrpc": "2.0", "id": 1, "params": 1}`))
-			So(err, ShouldBeNil)
+			require.NoError(t, err)
 
 			r, err := codec.NewRequest(rec, req)
-			So(err, ShouldBeNil)
-			So(r, ShouldNotBeNil)
+			require.NoError(t, err)
+			require.NotEmpty(t, r)
 
 			var args string
 			err = r.ReadRequest(&args)
 
-			So(err, ShouldBeError)
-			So(args, ShouldEqual, "")
+			require.Error(t, err)
+			require.Equal(t, "", args)
 		})
 
-		Convey("HandleError suite", func() {
-			req, err := http.NewRequest(http.MethodPost, "/", strings.NewReader(`{"jsonrpc": "2.0", "id": 1}`))
-			So(err, ShouldBeNil)
+		t.Run("HandleError suite", func(t *testing.T) {
+			t.Run("should be false for nil error", func(t *testing.T) {
+				var (
+					rec   = httptest.NewRecorder()
+					codec = NewCodec()
+				)
+				req, err := http.NewRequest(http.MethodPost, "/", strings.NewReader(`{"jsonrpc": "2.0", "id": 1}`))
+				require.NoError(t, err)
 
-			r, err := codec.NewRequest(rec, req)
-			So(r, ShouldNotBeNil)
-			So(err, ShouldBeNil)
+				r, err := codec.NewRequest(rec, req)
+				require.NoError(t, err)
+				require.NotEmpty(t, r)
 
-			Convey("should be false for nil error", func() {
-				ok := r.HandleError(nil)
-				So(ok, ShouldBeFalse)
+				require.False(t, r.HandleError(nil))
 			})
 
-			Convey("should write misc.HTTPError", func() {
+			t.Run("should write misc.HTTPError", func(t *testing.T) {
+				var (
+					rec   = httptest.NewRecorder()
+					codec = NewCodec()
+				)
+				req, err := http.NewRequest(http.MethodPost, "/", strings.NewReader(`{"jsonrpc": "2.0", "id": 1}`))
+				require.NoError(t, err)
+
+				r, err := codec.NewRequest(rec, req)
+				require.NoError(t, err)
+				require.NotEmpty(t, r)
+
 				ok := r.HandleError(
 					misc.NewHTTPError(http.StatusBadRequest, "bad request"))
-				So(ok, ShouldBeTrue)
+				require.True(t, ok)
 				body := strings.TrimSpace(rec.Body.String())
-				So(body, ShouldEqual, `{"jsonrpc":2.0,"id":1,"error":{"code":-32000,"message":"code=400, message=bad request"}}`)
+				require.Equal(t, `{"jsonrpc":2.0,"id":1,"error":{"code":-32000,"message":"code=400, message=bad request"}}`, body)
 			})
 
-			Convey("should write Error", func() {
+			t.Run("should write Error", func(t *testing.T) {
+				var (
+					rec   = httptest.NewRecorder()
+					codec = NewCodec()
+				)
+				req, err := http.NewRequest(http.MethodPost, "/", strings.NewReader(`{"jsonrpc": "2.0", "id": 1}`))
+				require.NoError(t, err)
+				// Accept-Encoding: wrong, encoding
+				req.Header.Set(misc.HeaderAcceptEncoding, "wrong, encoding")
+
+				r, err := codec.NewRequest(rec, req)
+				require.NoError(t, err)
+				require.NotEmpty(t, r)
+
 				ok := r.HandleError(&Error{
 					Code:     ErrBadParams,
 					Message:  "bad request",
 					Internal: new(json.SyntaxError),
 				})
-				So(ok, ShouldBeTrue)
+				require.True(t, ok)
 				body := strings.TrimSpace(rec.Body.String())
-				So(body, ShouldEqual, `{"jsonrpc":2.0,"id":1,"error":{"code":-32602,"message":"cannot unmarshal request"}}`)
+				require.Equal(t, `{"jsonrpc":2.0,"id":1,"error":{"code":-32602,"message":"cannot unmarshal request"}}`, body)
 			})
 
-			Convey("should write unknown type of error", func() {
+			t.Run("should write unknown type of error", func(t *testing.T) {
+				var (
+					rec   = httptest.NewRecorder()
+					codec = NewCodec()
+				)
+				req, err := http.NewRequest(http.MethodPost, "/", strings.NewReader(`{"jsonrpc": "2.0", "id": 1}`))
+				require.NoError(t, err)
+
+				// Accept-Encoding: gzip, deflate, br
+				req.Header.Set(misc.HeaderAcceptEncoding, "gzip, deflate, br")
+
+				r, err := codec.NewRequest(rec, req)
+				require.NoError(t, err)
+				require.NotEmpty(t, r)
+
 				ok := r.HandleError(errors.New("bad request"))
-				So(ok, ShouldBeTrue)
+				require.True(t, ok)
 				body := strings.TrimSpace(rec.Body.String())
-				So(body, ShouldEqual, `{"jsonrpc":2.0,"id":1,"error":{"code":-32000,"message":"bad request"}}`)
+				require.Equal(t, `{"jsonrpc":2.0,"id":1,"error":{"code":-32000,"message":"bad request"}}`, body)
 			})
 		})
 	})

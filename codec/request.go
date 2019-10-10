@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/go-helium/jsonrpc/misc"
+	"github.com/nspcc-dev/jsonrpc/misc"
 )
 
 // ----------------------------------------------------------------------------
@@ -109,7 +109,7 @@ func newCodecRequest(w http.ResponseWriter, r *http.Request, encoder Encoder) (R
 
 	defer func() {
 		if r.Body != nil {
-			r.Body.Close()
+			_ = r.Body.Close()
 		}
 	}()
 
