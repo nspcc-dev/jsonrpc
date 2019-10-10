@@ -35,6 +35,7 @@ type (
 		replyType reflect.Type  // type of the response argument
 	}
 
+	//Error is constant error
 	Error string
 
 	// CompressionSelector alias
@@ -42,13 +43,20 @@ type (
 )
 
 const (
-	ErrNotAFunction    = Error("method must be function")
-	ErrNotEnoughArgs   = Error("method needs three args: *http.Request, *args, *reply")
-	ErrNotEnoughOut    = Error("method needs one out: error")
-	ErrNotReturnError  = Error("method needs one out: error")
+	//ErrNotAFunction when passed not a function
+	ErrNotAFunction = Error("method must be function")
+	//ErrNotEnoughArgs when passed less than three args
+	ErrNotEnoughArgs = Error("method needs three args: *http.Request, *args, *reply")
+	//ErrNotEnoughOut when method has not output
+	ErrNotEnoughOut = Error("method needs one out: error")
+	//ErrNotReturnError when method out is not error
+	ErrNotReturnError = Error("method needs one out: error")
+	//ErrFirstArgRequest when first arg is not *http.Request
 	ErrFirstArgRequest = Error("method needs first parameter to be *http.Request")
-	ErrSecondArgError  = Error("second argument must be a pointer and must be exported")
-	ErrThirdArgError   = Error("third argument must be a pointer and must be exported")
+	//ErrSecondArgError when 2nd arg is not pointer or not exported
+	ErrSecondArgError = Error("second argument must be a pointer and must be exported")
+	//ErrThirdArgError when 3rd arf is not pointer or not exported
+	ErrThirdArgError = Error("third argument must be a pointer and must be exported")
 )
 
 var (

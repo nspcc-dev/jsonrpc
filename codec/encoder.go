@@ -44,6 +44,7 @@ func (w *encResponseWriter) Write(data []byte) (int, error) {
 	return w.enc.Encode(w.ResponseWriter).Write(data)
 }
 
+//NewEncodedResponse returns http.ResponseWriter, that writes with Encoder
 func NewEncodedResponse(w http.ResponseWriter, enc Encoder) http.ResponseWriter {
 	return &encResponseWriter{
 		ResponseWriter: w,
